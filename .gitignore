@@ -1,2 +1,4 @@
-!DL
+*.md
+!DL.md
+*.assets
 !DL.assets
