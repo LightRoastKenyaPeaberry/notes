@@ -589,7 +589,14 @@ IoU metric: bbox
   + 对小目标检测效果很差
   + 模型大，检测速度慢
 
-### 网络结构
+### 整体思想
+
++ 正负样本匹配（hard negtive mining)
++ 
+
+
+
+### 结构
 
 ![image-20231013174602449](./DL.assets/image-20231013174602449.png)
 
@@ -599,7 +606,11 @@ IoU metric: bbox
 
 ## yolov1
 
-#### 整体思想
+### 整体思想
+
+​	yolov1里没有生成anchor，而是通过grid cell直接预测两个box的坐标信息，这导致了模型mAP不理想。v2版本后便启用了生成anchor(bounding box prior)的思想。
+
+​	简而言之，其他都是预测基于anchor的偏移参数，这个版本是直接预测物体的坐标。
 
 <img src="./DL.assets/image-20231015193451099.png" alt="image-20231015193451099" style="zoom:50%;" />
 
@@ -607,16 +618,262 @@ IoU metric: bbox
 
 <img src="./DL.assets/image-20231015193527507.png" alt="image-20231015193527507" style="zoom:50%;" />
 
++ 损失函数
+
+$$
+&\lambda_{coord}\sum_{i=0}^{S^{2}}\sum_{j=0}^{B}\mathbb{I}_{ij}^{obj}(x_{i}-\hat{x_{i}})^2+(y_{i}-\hat{y_{i}})^2+ \\
+&\quad\quad\quad\quad\lambda_{coord}\sum_{i=0}^{S^{2}}\sum_{j=0}^{B}\mathbb{I}_{ij}^{obj}(\sqrt{w_{i}}-\sqrt{\hat{w_i}})^2+(\sqrt{h_{i}}-\sqrt{\hat{h_i}})^2+ \\
+&\sum_{i=0}^{S^{2}}\sum_{j=0}^{B}\mathbb{I}_{ij}^{obj}(C_{i}-\hat{C_{i}})^{2}+ \\
+&\lambda_{noobj}\sum_{i=0}^{S^{2}}\sum_{j=0}^{B}\mathbb{I}_{ij}^{obj}(C_{i}-\hat{C_{i}})^{2}+ \\
+&\sum_{i=0}^{S^{2}}\mathbb{I}_{ij}^{obj}\sum_{c\in{classes}}{(p_{i}(c)-\hat{p_{i}}(c))^2}
+$$
 
 
-#### 网络结构
+
+### 结构
 
 <img src="./DL.assets/image-20231015193601764.png" alt="image-20231015193601764" style="zoom:50%;" />
 
+<img src="./DL.assets/image-20231015194523193.png" alt="image-20231015194523193" style="zoom:50%;" />
 
++ 局限
+  + 对群体小目标不理想
+  + 目标在新的或者不寻常的尺寸配置下出现时，模型泛化弱
+  + 定位不准确是主要误差来源
+
+
+
+## yolov2
+
+### 整体思想
+
+在v1版本上做的各种尝试
+
++ Batch Normalization
+
++ High Resolution Classifier
+
++ Convolutional With Anchor Boxes
+
++ Dimension Clusters
+
++ Direct Location Prediction
+
+  + 模型的不稳定来自于预测box的中心坐标(x,y)
+
+  + 原先的坐标表达式		$x= (t_x*w_a)+x_a， y= (t_y*h_a)+y_a$
+
+  + 现在的坐标表达式		$b_x= \sigma(t_x)+c_x,  b_y=\sigma(t_y)+c_y$
+
+    ​									   $ b_w = p_we^{t_w},  b_h=p_he^{t_h}$
+
+    ​									   $Pr(object)*IOU(b,object)= \sigma(t_o)$
+
+     其中 $c_x,c_y$是grid cell左上角坐标，$a$是指anchor,  $p$是指bouding box prior, $t$是指   网络预测的偏移参数, $\sigma$是sigmoid函数。
+
++ Fine-Grained Features
+
+  + 将低层特征和高层特征融合
+
+  + passthrough layer (w/2, h/2, cx4)
+
+     ![image-20231017144756677](./DL.assets/image-20231017144756677.png)
+
++ Multi-Scale Training
+
+  + 每10个batches训练后网络随机选择一个新尺寸来训练（尺寸是32的倍数）
+
+
+
+### 结构
+
+Backbone: Darknet-19
+
+![image-20231017151455242](./DL.assets/image-20231017151455242.png)
+
+![image-20231017151550801](./DL.assets/image-20231017151550801.png)
+
+## yolov3
+
+### 整体思想
+
+一些缝缝补补罢了
+
++ 正负样本匹配
+
+  + 论文版本： 每个gt box只取iou最大的bbox当正样本，超过一定阈值的丢弃，剩下都当负样本
+  + Ultralytics版本
+  + ![image-20231017181622213](./DL.assets/image-20231017181622213.png)
 
 + 损失函数
+  $$
+  L(o,c,O,C,l,g)= \lambda_1L_{conf}(o,c)+ \lambda_2L_{cla}(O,C)+\lambda_3L_{loc}(l,g)\\
+  \lambda_1,  \lambda_2,  \lambda_3为平衡系数
+  $$
+  
 
-![img](./DL.assets/clip_image002.png)
+  + 置信度损失(Binary Cross Entropy)
 
-<img src="./DL.assets/image-20231015194523193.png" alt="image-20231015194523193" style="zoom:50%;" />
+  $$
+  L_{conf}(o,c)= -\frac{\sum_i(o_iln(\hat{c_i})+ (1-o_i)ln(1-\hat{c_i}))}{N}\\
+  \\
+  \hat{c_i}=Sigmoid(c_i)\\
+  其中o_i\in[0,1]，表示预测目标边界框与真实目标边界框的IOU（存在出入）\\
+  c_i为预测值，\hat{c_i}为c通过Sigmoid函数得到的预测置信度\\
+  N为正负样本个数
+  $$
+
+  
+
+  + 分类损失(Binary Cross Entropy)
+
+  $$
+  L_{cla}(O,C)=-\frac{\sum_{i\in pos}\sum_{j\in cla}(O_{ij}ln(\hat{C_{ij}})+(1-O_{ij})ln(1-\hat{C_{ij}}))}{N_{pos}}\\
+  \\
+  其中O_{ij}\in \{0,1\},表示预测 预测目标边界框i中是否存在第j类的目标\\
+  C_{ij}为预测值，\hat{C_{ij}}为C_{ij}通过Sigmoid函数得到的预测置信度\\
+  N_{pos}为正样本个数
+  $$
+
+  
+
+  + 定位损失（Sum of Squared Loss）
+
+  $$
+  L_{loc}(t,g)=\frac{\sum_{i\in pos}(\sigma(t_{x}^{i}-\hat{g_{x}^{i}})^2)+(\sigma(t_{y}^{i}-\hat{g_{y}^{i}})^2+(t_{w}^{i}-\hat{g_{w}^{i}})^2)+(t_{h}^{i}-\hat{g_{h}^{i}})^2)}{N_{pos}}\\
+  \\
+  t 为网络预测的回归参数\\
+  \hat{g}为真实回归参数\\
+  g是gt\; box真实的中心和宽高\\
+  \hat{g_{x}^{i}}= {g_{x}^{i}}-{c_{x}^{i}}\\
+  \hat{g_{y}^{i}}= {g_{y}^{i}}-{c_{y}^{i}}\\
+  \hat{g_{w}^{i}}= ln({g_{w}^{i}}/{p_{w}^{i}})\\
+  \hat{g_{h}^{i}}= ln({g_{h}^{i}}/{p_{h}^{i}})
+  $$
+
+  
+
+### 结构
+
+Backbone: Darknet-53
+
+![img](./DL.assets/70.png)
+
+完整框架： 
+
+![img](./DL.assets/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzM3NTQxMDk3,size_16,color_FFFFFF,t_70.jpeg)
+
+
+
+## yolov3 SPP
+
+### 整体思想
+
+在原本的v3加上了
+
++ Mosaic图像增强
+  + 四张图片拼接变一张
+    + 增加数据多样性
+    + 增加目标个数
+    + BN能一次性统计多张图片的参数
++ SPP模块
++ CIOU Loss
++ ~~Focal Loss~~
+
+```mermaid
+graph LR;
+A[IOU LOSS]--> B[GIOU LOSS];
+B-->C[DIOU LOSS];
+C-->D[CIOU LOSS]
+
+```
+
+#### IOU LOSS
+
+从v3的L2变成：
+$$
+IoU\; loss = -ln\frac{Intersection(gt,pre)}{Union(gt, pre)} 
+\\
+or\\
+IoU\; loss =1-\frac{Intersection(gt,pre)}{Union(gt, pre)}
+$$
+优点：
+
+1. 能够更好反应重合程度
+2. 具有尺度不变性
+
+缺点：
+
+1. 当不相交时始终为1，无法反映gt和pre的距离远近
+
+#### GIOU
+
+![image-20231017191903822](./DL.assets/image-20231017191903822.png)
+
+
+$$
+GIoU = IoU - \frac{A^c-u}{A^c}\\
+-1 \le GIoU \le 1\\
+L_{GIoU} =1 - GIoU\\
+0 \le L_{GIoU} \le 2\\
+A^c是蓝色矩形框买面积\\
+u是gt和pre的并集面积
+$$
+![image-20231017192037776](./DL.assets/image-20231017192037776.png)
+
+#### DIoU
+
++ 前二者 收敛慢，回归的不够准确
+
+![image-20231017192305467](./DL.assets/image-20231017192305467.png)
+$$
+DIoU = IoU - \frac{\rho^2(b,b^{gt})}{c^2} = IoU - \frac{d^2}{c^2}\\
+-1 \le DIoU \le 1\\
+L_{DIoU} =1 - DIoU\\
+0 \le L_{DIoU} \le 2\\
+$$
+
+#### CIoU
+
++ 一个优秀的回归定位损失应考虑： 重叠面积， 中心点距离， 长宽比
+
+$$
+CIoU = IoU - (\frac{\rho^2(b,b^{gt})}{c^2} +\alpha\upsilon)
+\\
+\upsilon= \frac{4}{\pi^2}(arctan\frac{w^{gt}}{h_{gt}}- arctan\frac{w}{h})^2
+\\
+\alpha = \frac{\upsilon}{(1-IoU)+\upsilon}\\
+L_{CIoU} = 1-CIoU
+$$
+
+#### Focal loss
+
++ 针对one-stage object detection model的class imbalance问题
+
+$$
+CE(p,y) = \begin{cases}-ln(p) & if\; y=1\\-ln(1-p) & otherwise.\end{cases}  \quad\quad\quad(1)\\
+p_t = \begin{cases}p & if\; y=1\\1-p & otherwise.\end{cases}  \quad\quad\quad\quad\quad\;\;\quad\quad\quad(2)\\
+\alpha_t = \begin{cases}\alpha & if\; y=1\\1-\alpha & otherwise.\end{cases}  \quad\quad\quad\quad\quad\;\;\quad\quad\quad(3)\\\\
+CE(p_t) = -\alpha_tln(p_t)\quad\quad\quad\quad\quad\;\;\;\quad\quad\quad\quad\quad(4)\\
+FL(p_t)=-(1-p_t)^\gamma ln(p_t)\quad\quad\quad\;\;\;\,\quad\quad\quad\quad(5)\\
+FL(p_t)=-\alpha_t(1-p_t)^\gamma ln(p_t)\quad\quad\quad\;\quad\quad\quad\quad(6)\\
+$$
+
+$$
+\\(6)为最终版
+\\
+\alpha和\gamma是超参数。 (1-p_t)^\gamma能够降低易分样本的损失贡献
+$$
+
+
+
++ FL易受噪音感染
+
+![image-20231017195654981](./DL.assets/image-20231017195654981.png)
+
+
+
+### 结构
+
+![yolov3spp](./DL.assets/yolov3spp.png)
+
