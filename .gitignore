@@ -2,3 +2,4 @@
 !DL.md
 *.assets
 !DL.assets
+.DS_Store
