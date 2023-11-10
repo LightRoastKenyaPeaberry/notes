@@ -816,7 +816,7 @@ GIoU = IoU - \frac{A^c-u}{A^c}\\
 -1 \le GIoU \le 1\\
 L_{GIoU} =1 - GIoU\\
 0 \le L_{GIoU} \le 2\\
-A^c是蓝色矩形框买面积\\
+A^c是蓝色矩形框的面积\\
 u是gt和pre的并集面积
 $$
 ![image-20231017192037776](./DL.assets/image-20231017192037776.png)
@@ -865,15 +865,25 @@ $$
 \alpha和\gamma是超参数。 (1-p_t)^\gamma能够降低易分样本的损失贡献
 $$
 
-
+![image-20231017195654981](./DL.assets/image-20231017195654981.png)
 
 + FL易受噪音感染
-
-![image-20231017195654981](./DL.assets/image-20231017195654981.png)
 
 
 
 ### 结构
 
 ![yolov3spp](./DL.assets/yolov3spp.png)
+
+
+
+
+
+
+
+
+
+
+
+
 
