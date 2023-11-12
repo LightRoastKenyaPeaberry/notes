@@ -1,5 +1,3 @@
-
-
 # pytorch classification
 
 ## LeNet 
@@ -877,6 +875,7 @@ $$
 
 
 
+<<<<<<< HEAD
 
 
 
@@ -886,4 +885,29 @@ $$
 
 
 
+
+=======
+## yolov4
+
+### 整体思想 
+
++ Eliminate grid sensitivity
+  + 给sigma函数引入缩放因子和常量，改变其值域，使得预测框的中心点落到grid边界线上的情况较容易达成（原先需要$t_x,t_y \rightarrow +\infty$）
++ Mosanic data augmentation
++ IoU threshold(match positive samples)
+  + <img src="./DL.assets/image-20231025152536367.png" alt="image-20231025152536367" style="zoom:50%;" />
++ Optimizered anchors
++ CIoU
+
+### 结构
+
++ backbone: CSPDARKNET53
++ Neck: SPP, PAN
++ Head: YOLOv3
+
+![image-20231025134658068](./DL.assets/image-20231025134658068.png)
+
+![image-20231025144507849](./DL.assets/image-20231025144507849.png)
+
+![image-20231025144620789](./DL.assets/image-20231025144620789.png)
 
