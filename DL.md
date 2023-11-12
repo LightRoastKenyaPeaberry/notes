@@ -883,16 +883,33 @@ $$
 
 + Eliminate grid sensitivity
   + 给sigma函数引入缩放因子和常量，改变其值域，使得预测框的中心点落到grid边界线上的情况较容易达成（原先需要$t_x,t_y \rightarrow +\infty$）
+  
+  + $$
+    b_x= \sigma(t_x)+c_x\\
+    b_y=\sigma(t_y)+c_y\\
+    -------------\\
+    现改为\\
+    b_x= (2\cdot\sigma(t_x)-0.5)+c_x\\
+    b_y=(2\cdot\sigma(t_y)-0.5)+c_y\\
+    $$
+  
+    ​							
+  
 + Mosanic data augmentation
+
 + IoU threshold(match positive samples)
   + <img src="./DL.assets/image-20231025152536367.png" alt="image-20231025152536367" style="zoom:50%;" />
+  
 + Optimizered anchors
+
 + CIoU
 
 ### 结构
 
 + backbone: CSPDARKNET53
 + Neck: SPP, PAN
+  + PAN = FPN+Bottom-up path augmentation
+
 + Head: YOLOv3
 
 ![image-20231025134658068](./DL.assets/image-20231025134658068.png)
@@ -900,4 +917,210 @@ $$
 ![image-20231025144507849](./DL.assets/image-20231025144507849.png)
 
 ![image-20231025144620789](./DL.assets/image-20231025144620789.png)
+
+
+
+## yolov5(v6.1)
+
+### 整体思想
+
+<font size=5>改动</font>
+
++ 将Foucs模块替换成了6x6的普通卷积层 （patch merge第一步的反向操作, 也可见YOLOv2的pass through layer）
++ SPP --> SPPF (结果一样，后者速度更快)
+
+<img src="./DL.assets/image-20231112180357221.png" alt="image-20231112180357221" style="zoom:50%;" />
+
++ 数据增强
+  + mosaic
+  + copy paste  --- 但是必须要有实例分割的标注
+  + random affine --- rotation, scale, translation, shear
+  + mix up
+  + albumentations 一个数据增强的包
+  + HSV
+  + random horizontal flip
+
+<img src="./DL.assets/image-20231112180751390.png" alt="image-20231112180751390" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231112181229170.png" alt="image-20231112181229170" style="zoom:50%;" />
+
++ 训练策略
+  + Multi-scale training(0.5-1.5x)
+  + AutoAnchor(For training custom data)
+  + Warmup and Cosine LR scheduler
+  + EMA(Exponential Moving Average)
+  + Mixed precision
+  + Evolve hyper-parameters
++ 平衡不同尺度损失
+  + 针对三个预测特征层(P3,P4,P5)上的obj损失采用不同的权重
+
+$$
+L_{obj} = 4.0\cdot L_{obj}^{small}+ 1.0\cdot L_{obj}^{medium}+0.4\cdot L_{obj}^{large}
+$$
+
++ 消除Grid敏感度
+
+  + YOLOv4只修改了中心点的算法，v5中将box的长宽算法也改变了
+
+  + $$
+    b_w = p_we^{t_w}\\
+    b_h=p_he^{t_h}\\
+    -----------\\
+    现改为\\
+    b_w = p_w\cdot(2\cdot\sigma({t_w}))^2\\
+    b_h=p_h\cdot(2\cdot\sigma({t_h}))^2
+    $$
+
++ 匹配正样本
+
+![image-20231112192019015](./DL.assets/image-20231112192019015.png)
+
+若$r^{max} < anchor\_t$，即为匹配成功。
+
+### 结构
+
++ Backbone: New CSP-Darknet53
++ Neck: SPPF, New CSP-PAN
++ Head: YOLOv3 Head
+
+
+
+## YOLOX
+
+
+
+
+
+## FOCS
+
+Fully Convolutional One-Stage Object Detection
+
+### 整体思想
+
++ **Anchor-Free**
++ One-stage
++ FCN-base
+
+针对一个预测点，直接预测l t r b四个参数
+
+<font size=4>Anchor-base网络的问题</font>
+
++ 检测器的性能与Anchor的size和aspect ratio相关
++ 一般anchor的size和aspect ratio是固定的，在任务迁移时可能需要重新设计
++ 为了达到更高的recall，要生成密集的anchor，其中绝大部分都是负样本。正负样本极度不均匀
++ Anchor导致网络训练的繁琐
+
+What is center-ness?
+
+
+
+### 结构
+
+
+
+![image-20231112201643896](./DL.assets/image-20231112201643896.png)
+
+# pytorch segmentation
+
+<font size=5>常见分割任务</font>
+
++ 语义分割(semantic segmentation)
++ 实例分割(instance segmentation)
++ 全景分割(panoramic segementation)
+
+<img src="./DL.assets/image-20231112152440458.png" alt="image-20231112152440458" style="zoom:50%;" />
+
+**难度依次递增**
+
+
+
+<font size=5>语义分割任务常见的数据集格式</font>
+
++ PASCAL VOC
+  + PNG图片（P模式），通道数为1
+  + 边缘和难以分割的部分用白色填充
++ MS COCO
+  + 针对图像中的每一个目标都记录的是polygon坐标 --> 实例分割√
+  + 使用这个数据集需要手动把polygon坐标解码成PNG图片 
+
+
+
+<font size=5>语义分割得到结果的具体形式</font>
+
+跟标签文件一样。。。。
+
+<img src="./DL.assets/image-20231112163129018.png" alt="image-20231112163129018" style="zoom:50%;" />
+
+
+
+<font size=5>常见语义分割评价指标</font>
+$$
+{Pixel\;Accuracy}_{(Global\,Acc)} = \frac{\sum_in_{ii}}{\sum_it_i}
+\\
+mean\;Accuracy = \frac{1}{n_{cls}}\cdot\sum_i\frac{n_{ii}}{t_i}
+\\
+mean\;IoU = \frac{1}{n_{cls}}\cdot\sum_i\frac{n_{ii}}{t_i+\sum_jn_{ji}-n_{ii}}
+\\
+————————————————————————\\
+nij:类别i被预测成类别j的像素个数\\
+n_{cls}:目标类别个数\\
+t_i = \sum_{j}n_{ij}:目标类别i的总像素个数（真实标签）
+$$
+pytorch通过**混淆矩阵**来计算以上指标
+
+<img src="./DL.assets/image-20231112164424987.png" alt="image-20231112164424987" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231112164506045.png" alt="image-20231112164506045" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231112164555492.png" alt="image-20231112164555492" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231112164646189.png" alt="image-20231112164646189" style="zoom:50%;" />
+
+
+
+<font size=5>标注工具</font>
+
+[label me](https://github.com/wkentaro/labelme)
+
+[ei seg](https://github.com/PaddlePaddle/PaddleSeg)
+
+
+
+## 转置卷积（transposed convolution)
+
+别名： ~~fractionally-strided convolution, deconvolution~~   不建议使用
+
+作用： 基本是**upsample**
+
+ps:
+
++ 转置卷积不是卷积的逆运算
++ 转置卷积也是卷积
+
+[相关论文](https://arxiv.org/abs/1603.07285)
+
+<font size=5>转置卷积操作步骤</font>
+
++ 在输入特征图元素间填充s-1行和列的0
++ 在输入特征图四周填充k-p-1行和列的0
++ 将卷积核参数上下、左右翻转
++ 做正常卷积运算（padding=0,  stride=1）
+
+$$
+Height_{out} = (H_{in}-1)\times stride[0] -2\times padding[0]+ kernel\_size[0]\\
+Width_{out} = (W_{in}-1)\times stride[1] -2\times padding[1]+ kernel\_size[1]\\
+\\
+------------------------------\\
+pytorch\;version\\
+H_{out} = (H_{in}-1)\times stride[0] -2\times padding[0]+ dilation[0]\times (kernel\_size[0]-1)+output\_padding[0]+1\\
+W_{out} = (W_{in}-1)\times stride[1] -2\times padding[1]+ dilation[1]\times (kernel\_size[1]-1)+output\_padding[1]+1\\
+$$
+
+
+
+## 膨胀卷积（dilated convolution）
+
+
+
+## FCN
 
