@@ -577,7 +577,28 @@ IoU metric: bbox
 
 ![image-20230919143208728](./DL.assets/image-20230919143208728.png)
 
+## Faster rcnn
 
+
+
+## FPN
+
+**feature pyramid networks**
+
+注意fpn与其他的不同
+
++ a 为针对不同尺度的目标，将图片缩放，再去预测
++ b 为普通的特征提取流程，在最后一个特征层上预测
++ c 为在每一步特征提取的特征图上进行预测
++ d 与c的不同在于它做了不同尺度信息的特征融合，在每一步融合特征图上进行预测
+
+**<font size=4>多个层的预测结果，最终都是映射回原图去表示结果</font>**
+
+![image-20231114112123285](./DL.assets/image-20231114112123285.png)
+
+![image-20231114112311684](./DL.assets/image-20231114112311684.png)
+
+<img src="./DL.assets/image-20231114112447436.png" alt="image-20231114112447436" style="zoom:50%;" />
 
 
 
@@ -589,8 +610,20 @@ IoU metric: bbox
 
 ### 整体思想
 
++ 设置Default Box(anchor)
+  + scale和aspect组合形成4/6（k）种形状的anchor
+  + 特征层的每一点都生成k个anchor
+  + 假设有c个类别，对于mxn的特征图，要产生(c+4)kmn的输出。这里与faster rcnn不同的是位置参数，faster rcnn会为每个类别都预测4个位置参数，ssd则忽视类别，只输出4个位置参数。
+
 + 正负样本匹配（hard negtive mining)
-+ 
+  + 正样本取与gt box IoU最大的； 或IoU超过设定的阈值的
+  + 负样本按照confidence loss 递减排序，按比例取前面的样本作为训练的负样本
+
++ 损失函数
+  + 类别损失和定位损失
+  + $L(x,c,l,g) = \frac{1}{N}(L_{conf}(x,c)+\alpha L_{loc}(x,l,g))$
+  + 其中N是匹配的正样本个数，α为1
+
 
 
 
@@ -987,11 +1020,53 @@ $$
 
 ## YOLOX
 
+### 整体思想
+
+$\star$1st Streaming Perception Challenge
+
++ Anchor-Free
++ decoupled detection head
+  + 多个head间参数不共享
+
++ advanced label assgning strategy(SimOTA)
+  + 由OTA(Optimal Transport Assignment)简化得到，将正负样本匹配的过程看作一个最优传输问题
+  + 最小化将gt 分配给 anchor point的成本
+  + $c_{ij} = L^{cls}_{ij}+\lambda L^{reg}_{ij}$
+  + 并不是取所有点算cost，而是类似于fcos，先取gt box中的点，yolox另外设置一个fix center area（w/ 超参数center_radius=2.5)，落入gt box和fix center area交区域里的点cost较小，其他点cost较大
+  + 源码$cost = (pair\_wise\_cls\_loss+3.0*pair\_wise\_ious\_loss+100000.0*(~is\_in\_boxes\_and\_center))$
+  + 匹配流程
+    + 构建anchor point与gt的cost矩阵和IoU矩阵
+    + 根据IoU取前n_candidate_k个anchor point
+    + 算gt对应anchor point个数：dynamic_ks=torch.clamp(topk_ious.sum(1).int(),min=1)--> 即求gt与之k个anchor point的IoU和
+    + 每个gt根据其递增排序的cost取dynamic_ks个anchor point，将这些point标记为正样本，剩下的都是负样本
+    + 若发生同一个anchor point匹配多个gt，取cost最小的gt作为它的配对
 
 
 
 
-## FOCS
+**位置预测的四个参数**
+
+<img src="./DL.assets/image-20231115180424752.png" alt="image-20231115180424752" style="zoom: 33%;" />
+
+**损失计算**
+$$
+Loss = \frac{L_{cls}+\lambda L_{reg}+L_{obj}}{N_{pos}}\\
+\\\hline\\
+L_{obj}是IoU分支的损失\\
+L_{cls}和L_{obj}都是BCELoss\\
+\lambda在源码中设为5.0\\
+N_{pos}代表被分为正样本的Anchor Point数\\
+L_{cls}和L_{reg}只计算正样本的损失，L_{obj}正负样本损失都计算
+$$
+
+
+### 结构
+
+基本跟YOLOv5: 5.0一样，唯一区别在于head
+
+![image-20231115175650195](./DL.assets/image-20231115175650195.png)
+
+## FCOS
 
 Fully Convolutional One-Stage Object Detection
 
@@ -1003,14 +1078,75 @@ Fully Convolutional One-Stage Object Detection
 
 针对一个预测点，直接预测l t r b四个参数
 
-<font size=4>Anchor-base网络的问题</font>
+**<font size=4>Anchor-base网络的问题</font>**
 
 + 检测器的性能与Anchor的size和aspect ratio相关
 + 一般anchor的size和aspect ratio是固定的，在任务迁移时可能需要重新设计
 + 为了达到更高的recall，要生成密集的anchor，其中绝大部分都是负样本。正负样本极度不均匀
 + Anchor导致网络训练的繁琐
 
-What is center-ness?
+**What is center-ness?**
+
+表示当前预测点距离目标中心的远近，由网络的一个分支预测，真实标签是由该点距真实标注框的lrtb计算得到
+$$
+centerness^{*} = \sqrt{\frac{min(l^{*},r^{*})}{max(l^{*},r^{*})}\cdot\frac{min(t^{*},b^{*})}{max(t^{*},b^{*})}}
+$$
+**正负样本匹配**
+
++ 落入到gt box中的点都视作正样本 --> 这些点的一部分作为正样本（效果更好）
+
++ sub-box的两角坐标（center sampling）$（c_x-rs,c_y-rs,c_x+rs,c_y+rs）$，s为特征图相较原图的步距，r为超参数
+
+
+
+<img src="./DL.assets/image-20231114090108185.png" alt="image-20231114090108185" style="zoom:50%;" />
+
+
+
+**Ambiguity问题**
+
+一个点落入了多个gt box中，它负责预测哪个？--> 面积（area）最小的
+
++ 使用FPN结构
++ 在FPN基础上在采用center sampling匹配准则
+
+
+
+**Assign objects to FPN**
+
+将不同尺度的目标分配到不同特征图上
+$$
+如果特征图上的一点满足：\\
+max(l^*,t^*,r^*,b^*)\le m_{i-1}\\
+or\\
+max(l^*,t^*,r^*,b^*)\ge m_i\\
+它会被视作负样本
+$$
+
+
+**损失函数**
+$$
+L(\{p_{x,y}\},\{{t_{x,y}\},\{s_{x,y}}\}=
+\frac{1}{N_{pos}}\sum_{x,y}L_{cls}(p_{x,y},c^{*}_{x,y})\\
+\hspace{5cm}+\frac{1}{N_{pos}}\sum_{x,y}1_{\{c^{*}_{x,y}>0\}}L_{reg}(t_{x,y},t^{*}_{x,y})&\\
+\hspace{5cm}+\frac{1}{N_{pos}}\sum_{x,y}1_{\{c^{*}_{x,y}>0\}}L_{ctrness}(s_{x,y},s^{*}_{x,y})
+\\
+\hline
+\\
+p_{x,y}表示特征图在点(x,y)处预测的每个类别的score\\
+c^{*}_{x,y}表示...对应的真实类别标签\\
+1_{\{c^{*}_{x,y}>0\}}，指示函数，要求真实标签\gt0（正样本）\\
+t_{x,y}表示...预测的边界框信息\\
+t^{*}_{x,y}...真实边界框信息\\
+s_{x,y}...预测的centerness\\
+s^{*}_{x,y}真实的centerness
+$$
+
+ps： 类别损失为带focal loss的BCE Loss，定位损失是GIoU Loss, centerness损失是BCE Loss　
+
+**train a multi-class classifier or C binary classifier?**
+
+----what is the difference?
 
 
 
