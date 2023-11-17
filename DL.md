@@ -1256,7 +1256,78 @@ $$
 
 ## 膨胀卷积（dilated convolution）
 
+别名： Atrous convolition 空洞卷积
+
++ 增大感受野
++ 保持原特征图的w,h(一般情况)
+
+$\star$ 在特征提取网络中max pooling层会导致丢失细节信息和小目标，which 不能通过上采样还原，若简单粗暴地将max pooling去除，会导致感受野变小，影响后续卷积。因此需要dilated convolution 
+
+$\star$ 在语义分割任务中也不能简单粗暴地堆叠dilated convonlution --> gridding effect --> solution: hybrid dilated convolution(HDC)
+
+**HDC**
+
++ 假设有N个尺寸为KxK卷积层，膨胀系数依次为[$r_1,...r_i,...r_n$]，目标是使得经过一系列卷积操作的结果的感受野能够完全地覆盖一个方形区域，没有任何的空洞或丢失边缘
++ maximum distance between two nonzero values，$M_i$ 代表第i层的两个非零值之间的最大距离 ---- 两个非零元素紧挨时，距离为1
++ $$make:\\M_i&=&max[M_{i+1}-2r_i, 2r_i-M_{i+1}, r_i]\\M_n&=&r_n\\\hline\\design\:goal: let\quad M_2\le K$$
+  + r = []，总是从1开始的 --- 确保在第一步就不会出现孔洞
+  + 将r设置成锯齿形状 e.g. [1,2,3,1,2,3]
+  + r的元素们，公约数不能大于1
+
+
+
+<img src="./DL.assets/image-20231116145449693.png" alt="image-20231116145449693" style="zoom:50%;" />
+
+<center>Fig1: dilated convolution</center>
+
+![image-20231116154250405](./DL.assets/image-20231116154250405.png)
+
+<center>Fig2: gridding effect(same dc stacking)</center>
+
+![image-20231116153457139](./DL.assets/image-20231116153457139.png)
+
+<center>Fig3: how to avoid missing message through dilation rate design
+
+![image-20231116154051117](./DL.assets/image-20231116154051117.png)
+
+<center>Fig4: vanila convolution stacking</center>
+
 
 
 ## FCN
 
+Fully  Convolutional Networks for Semantic Segmentation
+
+首个端对端的针对像素级预测的全卷积网络
+
+非常经典
+
+2015
+
+### 整体思想
+
++ 21是PASCAL VOC的目标类别（20）+背景
++ 将普通的分类网络最后的全连接层换成卷积层，这样可以输入任意尺寸的图片
++ 损失计算
+  + 对每一个pixel求cross entropy loss，再求平均
+
+
+<img src="./DL.assets/image-20231116112536214.png" alt="image-20231116112536214" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231116114111230.png" alt="image-20231116114111230" style="zoom:50%;" />
+
+### 结构
+
+FCN-32S
+
+FCN-16S
+
+FCN-8S
+
+<img src="./DL.assets/image-20231116135826746.png" alt="image-20231116135826746" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231116140034551.png" alt="image-20231116140034551" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231116140544963.png" alt="image-20231116140544963" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231116141514343.png" alt="image-20231116141514343" style="zoom:50%;" />
