@@ -1668,3 +1668,52 @@ En_5, En_6和De_5是RSU-4F
 
 <center>Fig5： 各种参数</center>
 
+
+
+## Mask-R-CNN
+
+$\bigstar$ **Instance segmentation**
+
+$\bigstar$ Object detection
+
+$\bigstar$ Keypoint check
+
+### 整体思想
+
++ 与Faster-Rcnn
+  + faster rcnn 的3部分，经过特征提取网络后并联着rpn和fast rcnn
+  + 现在经过roi pooling(roi align)后，并联一个mask rcnn的分支
+
+
+<img src="./DL.assets/image-20231206212305167.png" alt="image-20231206212305167" style="zoom:50%;" />
+
++ RoIAlign
+  + RoIPooling的两次取整操作会导致misalignment问题
+    + 原图目标位置映射到特征层目标位置-->第一次取整
+    + 特征图目标再下采样-->第二次取整
+  + RoIAlign没有取整操作
+    + 映射没有取整，左上和右下坐标（带有小数）直接映射到特征图
+    + 下采样则通过设置采样倍率（samping ratio)，选取邻近的倍率平方个点，双线性插值算出输出
+    + 作者提到最终采样结果对采样点位置和采样点个数并不敏感
++ Mask分支（FCN）
+
+  + 训练： 输入是RPN提供的，即Proposal（正样本）
+  + 预测：输入是fast rcnn提供的，即proposal经过回归预测+nms过滤后，最终呈现在图上的目标检测结果
+  + mask和class是解耦的。分支最终的结果是28x28xnum_class形状的，一般情况下会将结果在channel维度上进行softmax，这样不同类别的概率总和为1，即它们存在竞争关系。但Mask分支最终没有softmax(使用的是sigmoid），根据fast rcnn的预测类别，将mask结果在通道上对应该类别的结果提取出来（28x28x1）
+
+  <img src="./DL.assets/image-20231206213727656.png" alt="image-20231206213727656" style="zoom:33%;" />
++ 损失
+
+$$
+Loss = L_{rpn}+L_{fast\_rcnn}+L{mask}\\
+$$
+
+<img src="./DL.assets/image-20231206213857290.png" alt="image-20231206213857290" style="zoom:50%;" />
+
+
+
+
+
+### 结构
+
+<img src="./DL.assets/image-20231206212657263.png" alt="image-20231206212657263" style="zoom:50%;" />
