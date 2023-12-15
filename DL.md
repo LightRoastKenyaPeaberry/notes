@@ -692,7 +692,7 @@ $$
 &\lambda_{coord}\sum_{i=0}^{S^{2}}\sum_{j=0}^{B}\mathbb{I}_{ij}^{obj}(x_{i}-\hat{x_{i}})^2+(y_{i}-\hat{y_{i}})^2+ \\
 &\quad\quad\quad\quad\lambda_{coord}\sum_{i=0}^{S^{2}}\sum_{j=0}^{B}\mathbb{I}_{ij}^{obj}(\sqrt{w_{i}}-\sqrt{\hat{w_i}})^2+(\sqrt{h_{i}}-\sqrt{\hat{h_i}})^2+ \\
 &\sum_{i=0}^{S^{2}}\sum_{j=0}^{B}\mathbb{I}_{ij}^{obj}(C_{i}-\hat{C_{i}})^{2}+ \\
-&\lambda_{noobj}\sum_{i=0}^{S^{2}}\sum_{j=0}^{B}\mathbb{I}_{ij}^{obj}(C_{i}-\hat{C_{i}})^{2}+ \\
+&\lambda_{noobj}\sum_{i=0}^{S^{2}}\sum_{j=0}^{B}\mathbb{I}_{ij}^{noobj}(C_{i}-\hat{C_{i}})^{2}+ \\
 &\sum_{i=0}^{S^{2}}\mathbb{I}_{ij}^{obj}\sum_{c\in{classes}}{(p_{i}(c)-\hat{p_{i}}(c))^2}
 $$
 
@@ -1717,3 +1717,17 @@ $$
 ### 结构
 
 <img src="./DL.assets/image-20231206212657263.png" alt="image-20231206212657263" style="zoom:50%;" />
+
+
+
+# pytorch keypoint detection
+
+## HRNet
+
+单一个体姿态估计，17个关键点，2d
+
+$\bigstar$对于 Human Pose Estimation任务，基于深度学习的方法有两种
+
++ 基于regressing的方式，即直接预测每个关键点的位置坐标
++ 基于heatmap的方式，对每一个关键点预测一张热力图（预测出现在每个位置上的分数）
+
