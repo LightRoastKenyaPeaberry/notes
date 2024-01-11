@@ -579,6 +579,79 @@ IoU metric: bbox
 
 ## Faster rcnn
 
+### 整体思想
+
+$\bigstar$ 三部分
+
++ Backbone: 特征提取网络
++ RPN: 区域建议网络，生成单纯的候选框
++ Fast R-CNN: 检测头，得到最终的类别和边界框
+
+Backbone得到的特征是给后面两者共用的
+
+<img src="./DL.assets/image-20231216002003337.png" alt="image-20231216002003337" style="zoom: 25%;" />
+
+<img src="./DL.assets/image-20231227131622618.png" alt="image-20231227131622618" style="zoom:30%;" />
+
++ rpn相当于一个注意力机制，告诉预测头，哪些地方是值得“注意”的
++ 对于一张1000x600的图片，最终得到的特征图大小约为60x40，在特征图上每个处生成9种（3种scale, 3种ratio)尺寸的anchor，对这些anhcor和gt算IoU，大于一定threshold的为正样本，小于一定...为负样本，处于中间的丢弃，取正样本和一定数量的负样本（1:1）凑成256个，由这256个计算损失。
+
+$$
+L(\{p_i\},\{t_i\}) = \frac{1}{N_{cls}}\sum_{i}L_{cls}(p_i,p_i^*)+\lambda\frac{1}{N_{reg}}\sum_ip_i^*L_{reg}(t_i,t_i^*)\\
+\hline
+p_i表示第i个anchor预测为真实标签的概率\\
+p_i^*正样本为1，负样本为0\\
+t_i表示预测第i个anchor的边界框回顾参数\\
+t_i^*表示第i个anchor对应的gt box的边界框回归参数\\
+N_{cls}表示一张图片的所有样本数量==256\\
+N_{reg}表示anchor位置的个数(不包括9种尺寸），约为2400
+$$
+
+**多分类损失和二值交叉熵损失**
+
++ softmax cross entropy
+
+$$
+L_{cls} = - ln(p_i)
+$$
+
++ binary cross entropy
+
+$$
+L_{cls} = -[p_i^*ln(p_i)+(1-p_i^*)ln(1-p_i)]
+$$
+
+**smooth L1**
+$$
+smooth_{L_1} = \begin{cases}
+0.5x^2 \quad & if |x|\lt 1 \\
+|x| - 0.5 \quad & otherwise
+\end{cases}
+$$
+
+
+<img src="./DL.assets/image-20231227134413270.png" alt="image-20231227134413270" style="zoom:30%;" />
+
+<img src="./DL.assets/image-20231227134614325.png" alt="image-20231227134614325" style="zoom:30%;" />
+
+<img src="./DL.assets/image-20231227135741569.png" alt="image-20231227135741569" style="zoom:30%;" />
+
+  **对于预测参数**
+
++ 4个预测边界框参数 $t_x, t_y, t_w, t_h$ 都是直接预测出来的，通过它们可以得到预测的中心坐标和长宽
+
++ $t_x^*, t_y^*, t_w^*, t_h^*$是通过gt和anchor算出来的
+
++ 所以这四个参数是在衡量：预测框和anchor的差距，真实框和anchor的差距。通过让这两个差距越来越接近，使得网络具备找出物体的能力。
+
+
+
+### 结构
+
+ ![fasterRCNN](./DL.assets/fasterRCNN.png)
+
+
+
 
 
 ## FPN
@@ -1729,5 +1802,70 @@ $$
 $\bigstar$对于 Human Pose Estimation任务，基于深度学习的方法有两种
 
 + 基于regressing的方式，即直接预测每个关键点的位置坐标
-+ 基于heatmap的方式，对每一个关键点预测一张热力图（预测出现在每个位置上的分数）
++ 基于heatmap的方式，对每一个关键点预测一张热力图（预测出现在每个位置上的分数，分数最大的为结果）
 
+
+
+### 整体思想
+
+**取得结果**
+
++ heatmap相较于原图下采样了4倍
+
+<img src="./DL.assets/image-20231226082903486.png" alt="image-20231226082903486" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231226083029265.png" alt="image-20231226083029265" style="zoom:50%;" />
+
+**计算损失**
+
++ 构建GT heatmap
+  + 将原图下采样四倍，初始化相同大小的0值矩阵
+  + 将关键点对应的点赋值为1，以1为中心，四周用2d高斯分布赋值
+
+<img src="./DL.assets/image-20231226084238333.png" alt="image-20231226084238333" style="zoom:50%;" />
+
+<img src="./DL.assets/image-20231226084353732.png" alt="image-20231226084353732" style="zoom:50%;" />
+
++ 将关键点加权，计算总损失
+
+**评价准则**
+
+在object detection中用IoU衡量预测边界框和真实边界框的重合程度
+
+在keypoint detection中用OKS（object keypoint similarity) 来衡量预测关键点和真实关键点的相似程度
+
+值域在[0,1]间，越接近1表示越相似
+$$
+OKS = \frac{\sum_i[e^{-d_i^2/2s^2k_i^2}\cdot\delta(v_i\gt0)]}{\sum_i[\delta(v_i>0)]}
+$$
+
++ i 表示第i个关键点
++ $v_i$表示第i个关键点的可见性，这里的$v_i$由gt提供（在标注文件中）
+  + $v_i=0$表示该关键点可能在图片外，没有标注
+  + $v_i=1$表示该关键点可能在图片内，被遮挡了，但根据经验可以被标注出来
+  + $v_i=2$表示...可见，且被标注出来
++ $\delta(x)$为指示函数，当x为true时取1，反之取0
++ $d_i$表示第i个关键点距其gt的欧式距离
++ s为目标面积的平方根 （ 指的是分割面积）
++ $k_i$是控制第i个关键点的衰减常数
+
+
+
+**数据增强**
+
++ 随机旋转（-45~45)
++ 随机缩放(0.65~1.35)
++ 随机水平翻转
++ half body(以一定概率对目标裁剪，指保留上/下半身的关键点)
+
+
+
+**复现请注意保持图片的长宽比例不变**
+
+<img src="./DL.assets/image-20231226090912075.png" alt="image-20231226090912075" style="zoom:50%;" />
+
+
+
+### 结构
+
+![HRNet](./DL.assets/HRNet.png)
